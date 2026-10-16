@@ -11,7 +11,7 @@ def test_to_sgt_rejects_naive_datetime():
 
 
 def test_sgt_date_at_midnight_boundary():
-    # SGT = UTC+8, so SGT midnight on Jan 2 is 16:00 UTC on Jan 1.
+    # SGT midnight is 16:00 UTC the day before
     just_before = datetime(2026, 1, 1, 15, 59, 59, tzinfo=timezone.utc)
     just_after = datetime(2026, 1, 1, 16, 0, 0, tzinfo=timezone.utc)
     assert sgt_date(just_before) == date(2026, 1, 1)

@@ -16,8 +16,7 @@ def db_path(tmp_path):
 
 @pytest.fixture
 def setup(db_path):
-    """Two categories, two subjects, matching the sample plan (SAT Math
-    under School, IT Module under Work)."""
+    """Two categories and two subjects."""
     school = db.create_category("School", db_path=db_path)
     work = db.create_category("Work", db_path=db_path)
     sat_math = db.create_subject("SAT Math", school, db_path=db_path)
@@ -38,9 +37,7 @@ def log(setup, subject_id, day: date, minutes: int, mode="manual"):
     return db.log_session(subject_id, start, end, mode=mode, db_path=setup["db_path"])
 
 
-# ---------------------------------------------------------------------------
 # Totals
-# ---------------------------------------------------------------------------
 
 def test_today_total_only_counts_today(setup):
     today = date(2026, 10, 4)  # a Sunday
@@ -66,9 +63,7 @@ def test_all_time_total_ignores_week_boundaries(setup):
     assert stats.all_time_total(db_path=setup["db_path"]) == 30 * 60
 
 
-# ---------------------------------------------------------------------------
 # Breakdowns
-# ---------------------------------------------------------------------------
 
 def test_breakdown_by_subject_sums_and_sorts_busiest_first(setup):
     today = date(2026, 10, 4)
@@ -116,9 +111,7 @@ def test_breakdown_respects_time_range(setup):
     assert rows[0]["total_seconds"] == 10 * 60
 
 
-# ---------------------------------------------------------------------------
 # Daily series / week history
-# ---------------------------------------------------------------------------
 
 def test_daily_series_has_seven_days_starting_sunday(setup):
     sunday = date(2026, 10, 4)
@@ -154,9 +147,7 @@ def test_list_weeks_with_data_empty_when_no_sessions(setup):
     assert stats.list_weeks_with_data(db_path=setup["db_path"]) == []
 
 
-# ---------------------------------------------------------------------------
 # Streak
-# ---------------------------------------------------------------------------
 
 def test_streak_zero_with_no_sessions(setup):
     assert stats.current_streak(date(2026, 10, 4), db_path=setup["db_path"]) == 0
@@ -174,7 +165,7 @@ def test_streak_not_broken_by_missing_today(setup):
     today = date(2026, 10, 4)
     log(setup, setup["sat_math"], today - timedelta(days=1), 5)
     log(setup, setup["sat_math"], today - timedelta(days=2), 5)
-    # nothing logged for `today` yet
+    # nothing logged today
 
     assert stats.current_streak(today, db_path=setup["db_path"]) == 2
 
@@ -187,9 +178,7 @@ def test_streak_broken_by_a_fully_missed_day(setup):
     assert stats.current_streak(today, db_path=setup["db_path"]) == 1
 
 
-# ---------------------------------------------------------------------------
 # Weekly goal
-# ---------------------------------------------------------------------------
 
 def test_weekly_goal_progress_with_no_goal_set(setup):
     result = stats.weekly_goal_progress(date(2026, 10, 4), db_path=setup["db_path"])

@@ -1,19 +1,15 @@
-"""SQLite data layer: schema + CRUD for categories, subjects, sessions, settings.
-
-No business rules here beyond basic integrity (names required, times ordered,
-foreign keys valid) - things like "what counts as this week" belong in
-stats.py, not here. Categories/subjects are soft-deleted (archived) so
-session history never dangles; sessions themselves can be hard-deleted since
-the log is explicitly user-editable.
-"""
+"""SQLite data layer."""
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent / "data" / "pomolog.db"
+DEFAULT_DB_PATH = Path(
+    os.environ.get("POMOLOG_DB") or Path(__file__).resolve().parent / "data" / "pomolog.db"
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS categories (
@@ -68,9 +64,7 @@ def _row_to_dict(row: sqlite3.Row | None) -> dict | None:
     return dict(row) if row is not None else None
 
 
-# ---------------------------------------------------------------------------
 # Categories
-# ---------------------------------------------------------------------------
 
 def create_category(name: str, db_path: Path = DEFAULT_DB_PATH) -> int:
     name = name.strip()
@@ -108,7 +102,25 @@ def rename_category(category_id: int, new_name: str, db_path: Path = DEFAULT_DB_
 def archive_category(category_id: int, db_path: Path = DEFAULT_DB_PATH) -> None:
     conn = get_connection(db_path)
     try:
+        active_subjects = conn.execute(
+            "SELECT COUNT(*) FROM subjects WHERE category_id = ? AND archived = 0", (category_id,)
+        ).fetchone()[0]
+        if active_subjects:
+            raise ValueError(
+                f"Archive or move its {active_subjects} active subject(s) before archiving this category"
+            )
         cur = conn.execute("UPDATE categories SET archived = 1 WHERE id = ?", (category_id,))
+        if cur.rowcount == 0:
+            raise ValueError(f"No category with id {category_id}")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def unarchive_category(category_id: int, db_path: Path = DEFAULT_DB_PATH) -> None:
+    conn = get_connection(db_path)
+    try:
+        cur = conn.execute("UPDATE categories SET archived = 0 WHERE id = ?", (category_id,))
         if cur.rowcount == 0:
             raise ValueError(f"No category with id {category_id}")
         conn.commit()
@@ -137,9 +149,7 @@ def get_category(category_id: int, db_path: Path = DEFAULT_DB_PATH) -> dict | No
         conn.close()
 
 
-# ---------------------------------------------------------------------------
 # Subjects
-# ---------------------------------------------------------------------------
 
 def create_subject(name: str, category_id: int, db_path: Path = DEFAULT_DB_PATH) -> int:
     name = name.strip()
@@ -213,6 +223,25 @@ def archive_subject(subject_id: int, db_path: Path = DEFAULT_DB_PATH) -> None:
         conn.close()
 
 
+def unarchive_subject(subject_id: int, db_path: Path = DEFAULT_DB_PATH) -> None:
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            """SELECT s.id, c.name AS category_name, c.archived AS category_archived
+               FROM subjects s JOIN categories c ON c.id = s.category_id
+               WHERE s.id = ?""",
+            (subject_id,),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"No subject with id {subject_id}")
+        if row["category_archived"]:
+            raise ValueError(f"Restore the category '{row['category_name']}' first")
+        conn.execute("UPDATE subjects SET archived = 0 WHERE id = ?", (subject_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def list_subjects(
     include_archived: bool = False,
     category_id: int | None = None,
@@ -242,9 +271,7 @@ def get_subject(subject_id: int, db_path: Path = DEFAULT_DB_PATH) -> dict | None
         conn.close()
 
 
-# ---------------------------------------------------------------------------
 # Sessions
-# ---------------------------------------------------------------------------
 
 def log_session(
     subject_id: int,
@@ -253,9 +280,7 @@ def log_session(
     mode: str,
     db_path: Path = DEFAULT_DB_PATH,
 ) -> int:
-    """Insert a completed session. category_id is snapshotted from the
-    subject's current category so re-categorizing later doesn't rewrite
-    history. Timestamps must be aware (see timeutil.utc_now)."""
+    """Insert a completed session."""
     if mode not in ("pomodoro", "freeform", "manual"):
         raise ValueError(f"Invalid mode '{mode}'")
     if start_time.tzinfo is None or end_time.tzinfo is None:
@@ -295,9 +320,7 @@ def update_session(
     end_time: datetime | None = None,
     db_path: Path = DEFAULT_DB_PATH,
 ) -> None:
-    """Edit a logged session (for fixing mistakes). Any field left as None
-    is unchanged. Recomputes duration_seconds and re-snapshots category_id
-    if subject_id changes."""
+    """Edit a session; fields left as None are unchanged."""
     conn = get_connection(db_path)
     try:
         existing = conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
@@ -355,8 +378,7 @@ def list_sessions(
     newest_first: bool = True,
     db_path: Path = DEFAULT_DB_PATH,
 ) -> list[dict]:
-    """Sessions whose start_time falls in [start, end), optionally filtered
-    by subject or category. Omit start/end for all-time."""
+    """Sessions starting in [start, end), optionally filtered."""
     conn = get_connection(db_path)
     try:
         query = "SELECT * FROM sessions WHERE 1=1"
@@ -388,9 +410,7 @@ def get_session(session_id: int, db_path: Path = DEFAULT_DB_PATH) -> dict | None
         conn.close()
 
 
-# ---------------------------------------------------------------------------
 # Settings
-# ---------------------------------------------------------------------------
 
 def get_setting(key: str, default: str | None = None, db_path: Path = DEFAULT_DB_PATH) -> str | None:
     conn = get_connection(db_path)
@@ -409,6 +429,15 @@ def set_setting(key: str, value: str, db_path: Path = DEFAULT_DB_PATH) -> None:
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (key, value),
         )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_setting(key: str, db_path: Path = DEFAULT_DB_PATH) -> None:
+    conn = get_connection(db_path)
+    try:
+        conn.execute("DELETE FROM settings WHERE key = ?", (key,))
         conn.commit()
     finally:
         conn.close()
