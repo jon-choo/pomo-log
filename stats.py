@@ -1,4 +1,3 @@
-"""Totals, breakdowns, streaks and goal progress."""
 
 from __future__ import annotations
 
@@ -10,6 +9,7 @@ from timeutil import day_bounds_utc, sgt_date, week_bounds_utc, week_start_date
 
 
 # Totals
+
 
 def total_seconds(
     start: datetime | None = None,
@@ -40,7 +40,9 @@ def all_time_total(db_path: Path = db.DEFAULT_DB_PATH) -> int:
     return total_seconds(db_path=db_path)
 
 
+
 # Breakdowns
+
 
 def _subject_lookup(db_path: Path) -> dict[int, dict]:
     return {s["id"]: s for s in db.list_subjects(include_archived=True, db_path=db_path)}
@@ -53,7 +55,8 @@ def _category_lookup(db_path: Path) -> dict[int, dict]:
 def breakdown_by_subject(
     start: datetime | None = None, end: datetime | None = None, db_path: Path = db.DEFAULT_DB_PATH
 ) -> list[dict]:
-    """Total seconds per subject, busiest first."""
+    """Total seconds per subject, busiest first. Looks up archived
+    subjects/categories too, since a past session can reference either."""
     sessions = db.list_sessions(start=start, end=end, db_path=db_path)
     subjects = _subject_lookup(db_path)
     categories = _category_lookup(db_path)
@@ -103,8 +106,9 @@ def breakdown_by_category(
 
 # Charts / history
 
+
 def daily_series(d: date | None = None, db_path: Path = db.DEFAULT_DB_PATH) -> list[dict]:
-    """Seconds per day for the week containing d, Sunday first."""
+    """Per-day totals (seconds) for the SGT week containing d, Sunday first."""
     d = d if d is not None else sgt_date()
     start_of_week = week_start_date(d)
     series = []
@@ -116,7 +120,8 @@ def daily_series(d: date | None = None, db_path: Path = db.DEFAULT_DB_PATH) -> l
 
 
 def list_weeks_with_data(db_path: Path = db.DEFAULT_DB_PATH) -> list[date]:
-    """Start dates of weeks that have sessions, newest first."""
+    """SGT week-start (Sunday) dates for every week with at least one
+    logged session, newest first - the options for a past-week picker."""
     sessions = db.list_sessions(db_path=db_path)
     weeks = {
         week_start_date(sgt_date(datetime.fromisoformat(s["start_time"]))) for s in sessions
@@ -127,7 +132,10 @@ def list_weeks_with_data(db_path: Path = db.DEFAULT_DB_PATH) -> list[date]:
 # Streak
 
 def current_streak(d: date | None = None, db_path: Path = db.DEFAULT_DB_PATH) -> int:
-    """Consecutive days with a session (today may still be empty)."""
+    """Consecutive SGT days, ending at d (default today), with >=1 session.
+    If d itself has no session yet, it's skipped rather than breaking the
+    streak - so logging nothing /yet/ today doesn't zero out yesterday's
+    streak, but a day fully missed still breaks it."""
     d = d if d is not None else sgt_date()
     sessions = db.list_sessions(db_path=db_path)
     days_with_sessions = {sgt_date(datetime.fromisoformat(s["start_time"])) for s in sessions}
@@ -142,8 +150,10 @@ def current_streak(d: date | None = None, db_path: Path = db.DEFAULT_DB_PATH) ->
 
 # Weekly goal
 
+
 def weekly_goal_progress(d: date | None = None, db_path: Path = db.DEFAULT_DB_PATH) -> dict:
-    """Weekly goal progress, percent capped at 100."""
+    """Progress toward the configured weekly goal, or goal_minutes=None if
+    none has been set. percent is capped at 100."""
     goal_raw = db.get_setting("weekly_goal_minutes", db_path=db_path)
     goal_minutes = int(goal_raw) if goal_raw is not None else None
     actual_seconds = week_total(d, db_path=db_path)

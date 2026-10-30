@@ -16,7 +16,7 @@ def fresh_db():
 
 
 def load_app() -> AppTest:
-    return AppTest.from_file("app.py", default_timeout=15).run()
+    return AppTest.from_file("views/manage.py", default_timeout=15).run()
 
 
 def submit(at: AppTest, label: str) -> AppTest:

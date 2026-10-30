@@ -9,6 +9,7 @@ db.init_db()
 inject_styles()
 
 pages = [
-    st.Page("views/manage.py", title="Manage", default=True),
+    st.Page("views/subjects.py", title="Subjects", default=True),
+    st.Page("views/manage.py", title="Manage"),
 ]
 st.navigation(pages).run()

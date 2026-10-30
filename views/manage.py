@@ -1,9 +1,15 @@
 """Manage categories and subjects."""
 
+import html
+
 import streamlit as st
 
 import db
 from styles import narrow_page
+from ui import show_flash
+
+SUBJECT_COLUMNS = [0.6, 3.4, 2.6, 2, 1.6, 1.6]
+COLOR_NAMES = {hex_code: name for name, hex_code in db.SUBJECT_COLORS}
 
 narrow_page()
 
@@ -20,9 +26,7 @@ def run_action(action, success_message: str) -> None:
 
 st.title("Manage")
 
-flash = st.session_state.pop("flash", None)
-if flash:
-    st.success(flash)
+show_flash()
 
 categories = db.list_categories()
 subjects = db.list_subjects()
@@ -99,34 +103,49 @@ else:
             unsafe_allow_html=True,
         )
     else:
-        head = st.columns([4, 3, 2, 2])
-        head[0].markdown('<span class="board-head">Subject</span>', unsafe_allow_html=True)
-        head[1].markdown('<span class="board-head">Category</span>', unsafe_allow_html=True)
+        head = st.columns(SUBJECT_COLUMNS)
+        head[1].markdown('<span class="board-head">Subject</span>', unsafe_allow_html=True)
+        head[2].markdown('<span class="board-head">Category</span>', unsafe_allow_html=True)
+        head[3].markdown('<span class="board-head">Colour</span>', unsafe_allow_html=True)
         ordered = sorted(subjects, key=lambda s: (all_categories[s["category_id"]]["name"].lower(), s["name"].lower()))
         for subject in ordered:
             options = list(category_ids)
             if subject["category_id"] not in options:
                 options.append(subject["category_id"])
             with st.form(f"subject_{subject['id']}", border=False):
-                cols = st.columns([4, 3, 2, 2])
-                name = cols[0].text_input(
+                cols = st.columns(SUBJECT_COLUMNS)
+                cols[0].markdown(
+                    f'<span class="swatch" style="background:{subject["color"]}"></span>',
+                    unsafe_allow_html=True,
+                )
+                name = cols[1].text_input(
                     f"Name of {subject['name']}", value=subject["name"], label_visibility="collapsed"
                 )
-                category_id = cols[1].selectbox(
+                category_id = cols[2].selectbox(
                     f"Category of {subject['name']}",
                     options,
                     index=options.index(subject["category_id"]),
                     format_func=lambda cid: all_categories[cid]["name"],
                     label_visibility="collapsed",
                 )
-                save = cols[2].form_submit_button("Save", use_container_width=True)
-                archive = cols[3].form_submit_button("Archive", use_container_width=True)
+                color_options = [hex_code for _, hex_code in db.SUBJECT_COLORS]
+                color = cols[3].selectbox(
+                    f"Colour of {subject['name']}",
+                    color_options,
+                    index=color_options.index(subject["color"]) if subject["color"] in color_options else 0,
+                    format_func=lambda hex_code: COLOR_NAMES[hex_code],
+                    label_visibility="collapsed",
+                )
+                save = cols[4].form_submit_button("Save", use_container_width=True)
+                archive = cols[5].form_submit_button("Archive", use_container_width=True)
 
-                def apply_changes(subject=subject, name=name, category_id=category_id):
+                def apply_changes(subject=subject, name=name, category_id=category_id, color=color):
                     if name.strip() != subject["name"]:
                         db.rename_subject(subject["id"], name)
                     if category_id != subject["category_id"]:
                         db.recategorize_subject(subject["id"], category_id)
+                    if color != subject["color"]:
+                        db.set_subject_color(subject["id"], color)
 
                 if save:
                     run_action(apply_changes, "Subject updated.")
@@ -144,12 +163,17 @@ if archived_total:
         )
         for category in archived_categories:
             cols = st.columns([7, 2], vertical_alignment="center")
-            cols[0].markdown(f"{category['name']} <span class='muted'>(category)</span>", unsafe_allow_html=True)
+            cols[0].markdown(
+                f"{html.escape(category['name'])} <span class='muted'>(category)</span>", unsafe_allow_html=True
+            )
             if cols[1].button("Restore", key=f"restore_category_{category['id']}", use_container_width=True):
                 run_action(lambda: db.unarchive_category(category["id"]), f"Restored '{category['name']}'.")
         for subject in archived_subjects:
             category_name = all_categories[subject["category_id"]]["name"]
             cols = st.columns([7, 2], vertical_alignment="center")
-            cols[0].markdown(f"{subject['name']} <span class='muted'>({category_name})</span>", unsafe_allow_html=True)
+            cols[0].markdown(
+                f"{html.escape(subject['name'])} <span class='muted'>({html.escape(category_name)})</span>",
+                unsafe_allow_html=True,
+            )
             if cols[1].button("Restore", key=f"restore_subject_{subject['id']}", use_container_width=True):
                 run_action(lambda: db.unarchive_subject(subject["id"]), f"Restored '{subject['name']}'.")
