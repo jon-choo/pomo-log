@@ -201,3 +201,15 @@ def test_weekly_goal_progress_caps_at_100_percent(setup):
 
     result = stats.weekly_goal_progress(date(2026, 10, 4), db_path=setup["db_path"])
     assert result["percent"] == 100.0
+
+
+def test_set_weekly_goal_and_clear(setup):
+    stats.set_weekly_goal(120, db_path=setup["db_path"])
+    assert stats.weekly_goal_progress(date(2026, 10, 4), db_path=setup["db_path"])["goal_minutes"] == 120
+    stats.set_weekly_goal(0, db_path=setup["db_path"])
+    assert stats.weekly_goal_progress(date(2026, 10, 4), db_path=setup["db_path"])["goal_minutes"] is None
+
+
+def test_set_weekly_goal_rejects_negative(setup):
+    with pytest.raises(ValueError):
+        stats.set_weekly_goal(-5, db_path=setup["db_path"])

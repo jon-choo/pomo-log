@@ -12,13 +12,14 @@ inject_styles()
 
 today = st.Page("views/today.py", title="Today", default=True)
 manage = st.Page("views/manage.py", title="Manage")
-pages = [today, manage]
+settings = st.Page("views/settings.py", title="Settings")
+pages = [today, manage, settings]
 current = st.navigation(pages, position="hidden")
 active = timer.get_active_timer()
 
 if not (current.title == today.title and in_focus(active)):
     with st.container(key="topnav"):
-        columns = st.columns([2, 1, 1, 8], vertical_alignment="center")
+        columns = st.columns([2, 1, 1, 1, 7], vertical_alignment="center")
         columns[0].markdown('<span class="wordmark">Pomo Log</span>', unsafe_allow_html=True)
         for column, page in zip(columns[1:], pages):
             if page.title == current.title:

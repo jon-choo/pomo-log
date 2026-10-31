@@ -142,6 +142,16 @@ def current_streak(d: date | None = None, db_path: Path = db.DEFAULT_DB_PATH) ->
 
 # Weekly goal
 
+def set_weekly_goal(minutes: int, db_path: Path = db.DEFAULT_DB_PATH) -> None:
+    """Set the weekly goal; 0 clears it."""
+    if minutes < 0:
+        raise ValueError("Weekly goal can't be negative")
+    if minutes == 0:
+        db.delete_setting("weekly_goal_minutes", db_path=db_path)
+    else:
+        db.set_setting("weekly_goal_minutes", str(minutes), db_path=db_path)
+
+
 def weekly_goal_progress(d: date | None = None, db_path: Path = db.DEFAULT_DB_PATH) -> dict:
     """Weekly goal progress, percent capped at 100."""
     goal_raw = db.get_setting("weekly_goal_minutes", db_path=db_path)

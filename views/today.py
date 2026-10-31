@@ -55,7 +55,7 @@ def render_facts() -> None:
         st.html(f'<div class="goal-rule"><span style="width:{goal["percent"]:.1f}%"></span></div>')
     else:
         st.html('<div class="goal-rule"></div>')
-        st.page_link("views/manage.py", label="Set a weekly goal")
+        st.page_link("views/settings.py", label="Set a weekly goal")
 
 
 def render_sessions() -> None:

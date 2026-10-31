@@ -6,21 +6,11 @@ import streamlit as st
 
 import db
 from styles import narrow_page
-from ui import show_flash
+from ui import run_action, show_flash
 
 SUBJECT_COLUMNS = [4, 3, 2, 2]
 
 narrow_page()
-
-
-def run_action(action, success_message: str) -> None:
-    try:
-        action()
-    except ValueError as error:
-        st.error(str(error))
-        return
-    st.session_state["flash"] = success_message
-    st.rerun()
 
 
 st.title("Manage")
