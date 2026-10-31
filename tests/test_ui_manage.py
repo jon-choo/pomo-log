@@ -37,7 +37,7 @@ def test_add_category_then_subject():
     at = submit(at, "Add category")
     assert not at.exception
     assert [c["name"] for c in db.list_categories()] == ["School"]
-    assert any("Added category 'School'" in s.value for s in at.success)
+    assert any("Added category" in m.value for m in at.markdown)
 
     next(t for t in at.text_input if t.label == "New subject").set_value("SAT Math")
     at = submit(at, "Add subject")

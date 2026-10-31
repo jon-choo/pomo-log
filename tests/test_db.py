@@ -15,7 +15,6 @@ def db_path(tmp_path):
 
 # Categories
 
-
 def test_create_and_list_category(db_path):
     cat_id = db.create_category("Work", db_path=db_path)
     cats = db.list_categories(db_path=db_path)
@@ -103,6 +102,49 @@ def test_archive_subject_hides_it_from_default_listing(db_path):
     assert len(db.list_subjects(include_archived=True, db_path=db_path)) == 1
 
 
+def test_cannot_archive_category_with_active_subjects(db_path):
+    cat_id = db.create_category("Work", db_path=db_path)
+    subj_id = db.create_subject("IT Module", cat_id, db_path=db_path)
+    with pytest.raises(ValueError):
+        db.archive_category(cat_id, db_path=db_path)
+
+    db.archive_subject(subj_id, db_path=db_path)
+    db.archive_category(cat_id, db_path=db_path)  # fine once its subjects are archived
+    assert db.list_categories(db_path=db_path) == []
+
+
+def test_unarchive_category_restores_it_and_allows_new_subjects(db_path):
+    cat_id = db.create_category("Work", db_path=db_path)
+    db.archive_category(cat_id, db_path=db_path)
+    db.unarchive_category(cat_id, db_path=db_path)
+    assert len(db.list_categories(db_path=db_path)) == 1
+    db.create_subject("IT Module", cat_id, db_path=db_path)  # no error
+
+
+def test_unarchive_subject_restores_it(db_path):
+    cat_id = db.create_category("Work", db_path=db_path)
+    subj_id = db.create_subject("IT Module", cat_id, db_path=db_path)
+    db.archive_subject(subj_id, db_path=db_path)
+    db.unarchive_subject(subj_id, db_path=db_path)
+    assert len(db.list_subjects(db_path=db_path)) == 1
+
+
+def test_cannot_unarchive_subject_while_its_category_is_archived(db_path):
+    cat_id = db.create_category("Work", db_path=db_path)
+    subj_id = db.create_subject("IT Module", cat_id, db_path=db_path)
+    db.archive_subject(subj_id, db_path=db_path)
+    db.archive_category(cat_id, db_path=db_path)
+    with pytest.raises(ValueError):
+        db.unarchive_subject(subj_id, db_path=db_path)
+
+
+def test_unarchive_missing_ids_rejected(db_path):
+    with pytest.raises(ValueError):
+        db.unarchive_category(999, db_path=db_path)
+    with pytest.raises(ValueError):
+        db.unarchive_subject(999, db_path=db_path)
+
+
 # Sessions
 
 def test_log_session_computes_duration_and_snapshots_category(db_path):
@@ -127,7 +169,7 @@ def test_log_session_survives_subject_recategorization(db_path):
 
     db.recategorize_subject(subj_id, school, db_path=db_path)
 
-    # historical session still points at the category it was logged under
+    # session keeps its original category
     assert db.get_session(session_id, db_path=db_path)["category_id"] == work
 
 
@@ -198,14 +240,19 @@ def test_list_sessions_newest_first_by_default(db_path):
     assert [s["id"] for s in results] == [second, first]
 
 
-
 # Settings
-
 
 def test_setting_roundtrip_and_default(db_path):
     assert db.get_setting("pomodoro_work_minutes", default="25", db_path=db_path) == "25"
     db.set_setting("pomodoro_work_minutes", "30", db_path=db_path)
     assert db.get_setting("pomodoro_work_minutes", db_path=db_path) == "30"
+
+
+def test_delete_setting(db_path):
+    db.set_setting("active_timer", "{}", db_path=db_path)
+    db.delete_setting("active_timer", db_path=db_path)
+    assert db.get_setting("active_timer", db_path=db_path) is None
+    db.delete_setting("active_timer", db_path=db_path)  # deleting a missing key is a no-op
 
 
 def test_set_setting_overwrites_existing_value(db_path):

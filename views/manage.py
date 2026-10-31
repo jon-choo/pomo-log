@@ -8,8 +8,7 @@ import db
 from styles import narrow_page
 from ui import show_flash
 
-SUBJECT_COLUMNS = [0.6, 3.4, 2.6, 2, 1.6, 1.6]
-COLOR_NAMES = {hex_code: name for name, hex_code in db.SUBJECT_COLORS}
+SUBJECT_COLUMNS = [4, 3, 2, 2]
 
 narrow_page()
 
@@ -104,9 +103,8 @@ else:
         )
     else:
         head = st.columns(SUBJECT_COLUMNS)
-        head[1].markdown('<span class="board-head">Subject</span>', unsafe_allow_html=True)
-        head[2].markdown('<span class="board-head">Category</span>', unsafe_allow_html=True)
-        head[3].markdown('<span class="board-head">Colour</span>', unsafe_allow_html=True)
+        head[0].markdown('<span class="board-head">Subject</span>', unsafe_allow_html=True)
+        head[1].markdown('<span class="board-head">Category</span>', unsafe_allow_html=True)
         ordered = sorted(subjects, key=lambda s: (all_categories[s["category_id"]]["name"].lower(), s["name"].lower()))
         for subject in ordered:
             options = list(category_ids)
@@ -114,38 +112,24 @@ else:
                 options.append(subject["category_id"])
             with st.form(f"subject_{subject['id']}", border=False):
                 cols = st.columns(SUBJECT_COLUMNS)
-                cols[0].markdown(
-                    f'<span class="swatch" style="background:{subject["color"]}"></span>',
-                    unsafe_allow_html=True,
-                )
-                name = cols[1].text_input(
+                name = cols[0].text_input(
                     f"Name of {subject['name']}", value=subject["name"], label_visibility="collapsed"
                 )
-                category_id = cols[2].selectbox(
+                category_id = cols[1].selectbox(
                     f"Category of {subject['name']}",
                     options,
                     index=options.index(subject["category_id"]),
                     format_func=lambda cid: all_categories[cid]["name"],
                     label_visibility="collapsed",
                 )
-                color_options = [hex_code for _, hex_code in db.SUBJECT_COLORS]
-                color = cols[3].selectbox(
-                    f"Colour of {subject['name']}",
-                    color_options,
-                    index=color_options.index(subject["color"]) if subject["color"] in color_options else 0,
-                    format_func=lambda hex_code: COLOR_NAMES[hex_code],
-                    label_visibility="collapsed",
-                )
-                save = cols[4].form_submit_button("Save", use_container_width=True)
-                archive = cols[5].form_submit_button("Archive", use_container_width=True)
+                save = cols[2].form_submit_button("Save", use_container_width=True)
+                archive = cols[3].form_submit_button("Archive", use_container_width=True)
 
-                def apply_changes(subject=subject, name=name, category_id=category_id, color=color):
+                def apply_changes(subject=subject, name=name, category_id=category_id):
                     if name.strip() != subject["name"]:
                         db.rename_subject(subject["id"], name)
                     if category_id != subject["category_id"]:
                         db.recategorize_subject(subject["id"], category_id)
-                    if color != subject["color"]:
-                        db.set_subject_color(subject["id"], color)
 
                 if save:
                     run_action(apply_changes, "Subject updated.")
